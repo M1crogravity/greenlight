@@ -10,7 +10,7 @@ run-docker:
 
 .PHONY: run-app-local
 run-app-local:
-	go run ./cmd/api -db-dsn=${GREENLIGHT_DB_DSN}
+	go run ./cmd/api -db-dsn=${GREENLIGHT_DB_DSN} -jwt-secret=${JWT_SECRET}
 
 .PHONY: migrate
 migrate:

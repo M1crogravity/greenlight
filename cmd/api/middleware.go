@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/m1crogravity/greenlight/internal/data"
-	"github.com/m1crogravity/greenlight/internal/validator"
+	"github.com/pascaldekloe/jwt"
 
 	"github.com/tomasen/realip"
 	"golang.org/x/time/rate"
@@ -105,14 +105,34 @@ func (app *application) authenticate(next http.Handler) http.Handler {
 
 		token := headerParts[1]
 
-		v := validator.New()
-
-		if data.ValidateTokenPlaintext(v, token); !v.Valid() {
-			app.invalidAuthenticationTokenResponse(w, r)
+		claims, err := jwt.HMACCheck([]byte(token), []byte(app.config.jwt.secret))
+		if err != nil {
+			app.invalidCredentialsResponse(w, r)
 			return
 		}
 
-		user, err := app.models.Users.GetForToken(data.ScopeAuthentication, token)
+		if !claims.Valid(time.Now()) {
+			app.invalidCredentialsResponse(w, r)
+			return
+		}
+
+		if claims.Issuer != "greenlight.d-naidenko" {
+			app.invalidCredentialsResponse(w, r)
+			return
+		}
+
+		if !claims.AcceptAudience("greenlight.d-naidenko") {
+			app.invalidCredentialsResponse(w, r)
+			return
+		}
+
+		userId, err := strconv.ParseInt(claims.Subject, 10, 64)
+		if err != nil {
+			app.serverErrorResponse(w, r, err)
+			return
+		}
+
+		user, err := app.models.Users.Get(userId)
 		if err != nil {
 			switch {
 			case errors.Is(err, data.ErrRecordNotFound):
